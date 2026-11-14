@@ -29,12 +29,26 @@ def carregar_nltk():
 
 carregar_nltk()
 
-def analisar_frequencia(texto, limite=15):
-    if not texto or not texto.strip():
+def analisar_frequencia_corpus(limite=15):
+    """Analisa a frequência de palavras utilizando TODAS as reclamações salvas no CSV."""
+    if not os.path.exists(ARQUIVO_HISTORICO):
+        return []
+
+    try:
+        df = pd.read_csv(ARQUIVO_HISTORICO, sep=';')
+        if df.empty or 'Reclamacao' not in df.columns:
+            return []
+        
+        # Concatena todos os textos de reclamação salvos em uma única string gigante
+        texto_completo = " ".join(df['Reclamacao'].astype(str).tolist())
+    except Exception:
+        return []
+
+    if not texto_completo.strip():
         return []
 
     # Normalização: converter para minúsculas
-    texto_limpo = texto.lower()
+    texto_limpo = texto_completo.lower()
 
     # Tokenização das palavras
     tokens = word_tokenize(texto_limpo, language='portuguese')
@@ -54,13 +68,13 @@ def analisar_frequencia(texto, limite=15):
         and palavra.isalpha()
     ]
 
-    # Contagem de frequência
+    # Contagem de frequência global
     frequencia = nltk.FreqDist(palavras_filtradas)
     
     return frequencia.most_common(limite)
 
 def salvar_reclamacao_csv(texto):
-    """Salva a reclamação informada com data/hora no arquivo CSV."""
+    """Salva a nova reclamação informada com data/hora no arquivo CSV."""
     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     nova_linha = pd.DataFrame([{"Data_Hora": data_atual, "Reclamacao": texto}])
     
@@ -72,75 +86,73 @@ def salvar_reclamacao_csv(texto):
 # --- Interface Gráfica (Streamlit) ---
 
 st.title("📊 Painel de Inteligência de Reclamações")
-st.markdown("Ferramenta corporativa para identificar termos críticos e armazenar feedbacks de clientes para melhoria contínua de produtos.")
+st.markdown("Ferramenta corporativa para consolidação de feedbacks e identificação de termos críticos em **todo o histórico acumulado**.")
 st.divider()
 
 # Abas de Navegação da Aplicação
-aba_analise, aba_historico = st.tabs(["🔍 Nova Análise", "📂 Histórico de Reclamações Gravadas"])
+aba_analise, aba_historico = st.tabs(["🔍 Inserir & Analisar Base Completa", "📂 Histórico de Reclamações Gravadas"])
 
 with aba_analise:
     # Campo de entrada de texto
     texto_informado = st.text_area(
-        "Insira abaixo o relatório de feedback ou texto consolidado de reclamação:",
-        placeholder="Cole o texto das reclamações dos clientes aqui...",
-        height=200,
+        "Adicionar novo relatório de feedback / reclamação ao sistema:",
+        placeholder="Cole o texto da nova reclamação aqui...",
+        height=180,
         key="input_reclamacao"
     )
 
-    col1, col2 = st.columns([1, 4])
+    col1, _ = st.columns([1, 4])
 
     with col1:
-        botao_analisar = st.button("Analisar & Gravar", type="primary", use_container_width=True)
+        botao_adicionar = st.button("Salvar & Atualizar Análise", type="primary", use_container_width=True)
 
-    if botao_analisar:
+    if botao_adicionar:
         if not texto_informado.strip():
-            st.warning("Por favor, insira um texto válido para análise.")
+            st.warning("Por favor, insira um texto válido antes de salvar.")
         else:
-            with st.spinner("Processando texto, salvando no CSV e calculando frequências..."):
-                # Grava a reclamação no CSV institucional
-                salvar_reclamacao_csv(texto_informado)
-                
-                # Realiza a análise NLP
-                resultados = analisar_frequencia(texto_informado, limite=15)
+            salvar_reclamacao_csv(texto_informado)
+            st.success("Nova reclamação anexada com sucesso à base de dados global!")
 
-            if resultados:
-                st.success("Reclamação gravada com sucesso no histórico e análise concluída!")
-                
-                # Convertendo resultados para DataFrame do pandas
-                df_resultados = pd.DataFrame(resultados, columns=["Palavra", "Ocorrências"])
-                df_resultados["Palavra"] = df_resultados["Palavra"].str.capitalize()
-                
-                # Sub-abas para Gráfico e Tabela da análise atual
-                sub_tab_grafico, sub_tab_tabela = st.tabs(["📈 Gráfico da Análise", "📋 Tabela de Frequência"])
-                
-                with sub_tab_grafico:
-                    st.subheader("Termos Mais Recorrentes")
-                    chart_data = df_resultados.set_index("Palavra")
-                    st.bar_chart(chart_data)
-                
-                with sub_tab_tabela:
-                    st.subheader("Ocorrências Identificadas")
-                    st.dataframe(df_resultados, use_container_width=True, hide_index=True)
+    st.markdown("---")
+    st.subheader("📈 Análise Consolidada de Frequência (Todos os Dados)")
+    st.markdown("Abaixo estão os termos mais recorrentes considerando **todas as reclamações já gravadas** no servidor.")
 
-                # Botão de Exportação da Análise Atual
-                csv_data = df_resultados.to_csv(index=False, sep=';').encode('utf-8')
-                st.download_button(
-                    label="📥 Baixar Resultado da Análise (CSV)",
-                    data=csv_data,
-                    file_name="analise_frequencia_atual.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("Reclamação gravada, mas nenhum termo relevante foi encontrado após a filtragem.")
+    # Executa a análise baseada estritamente no corpus completo do CSV
+    resultados = analisar_frequencia_corpus(limite=15)
+
+    if resultados:
+        # Convertendo resultados globais para DataFrame do pandas
+        df_resultados = pd.DataFrame(resultados, columns=["Palavra", "Ocorrências"])
+        df_resultados["Palavra"] = df_resultados["Palavra"].str.capitalize()
+        
+        sub_tab_grafico, sub_tab_tabela = st.tabs(["📊 Gráfico Consolidado", "📋 Tabela Detalhada"])
+        
+        with sub_tab_grafico:
+            chart_data = df_resultados.set_index("Palavra")
+            st.bar_chart(chart_data)
+        
+        with sub_tab_tabela:
+            st.dataframe(df_resultados, use_container_width=True, hide_index=True)
+
+        # Botão de Exportação da Análise Consolidada
+        csv_data = df_resultados.to_csv(index=False, sep=';').encode('utf-8')
+        st.download_button(
+            label="📥 Baixar Relatório Consolidado (CSV)",
+            data=csv_data,
+            file_name="relatorio_frequencia_consolidado.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("Ainda não há dados suficientes no histórico para gerar a análise estatística. Adicione a primeira reclamação acima.")
 
 with aba_historico:
-    st.subheader("Base de Dados de Reclamações Registradas")
-    st.markdown("Visualização de todas as entradas submetidas pelos colaboradores e armazenadas no servidor.")
+    st.subheader("Repositório de Reclamações Registradas")
+    st.markdown("Listagem completa de todas as entradas submetidas e armazenadas no arquivo corporativo.")
     
     if os.path.exists(ARQUIVO_HISTORICO):
         df_historico = pd.read_csv(ARQUIVO_HISTORICO, sep=';')
         
-        st.metric("Total de Reclamações Registradas", len(df_historico))
+        st.metric("Total de Registros na Base", len(df_historico))
         st.dataframe(df_historico, use_container_width=True, hide_index=True)
         
         # Botão para baixar todo o histórico consolidado
@@ -152,7 +164,7 @@ with aba_historico:
             mime="text/csv"
         )
     else:
-        st.info("Nenhuma reclamação foi gravada no arquivo CSV ainda. Realize uma análise na aba anterior.")
+        st.info("O arquivo de histórico ainda não foi criado.")
 
 # Rodapé
 st.markdown("---")
