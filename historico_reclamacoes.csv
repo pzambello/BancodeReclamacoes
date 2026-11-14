@@ -1,0 +1,12 @@
+Data_Hora;Reclamacao
+2026-11-14 17:09:54;"Prezada equipe da [Nome da Empresa],
+Comprei o produto [Nome, Marca e Modelo] no dia [Data da Compra], conforme nota fiscal nº [Número da Nota]. O item foi entregue em [Data de Recebimento] e, após [tempo de uso, ex: 10 dias], parou de funcionar adequadamente, apresentando o seguinte problema: [descreva o defeito técnico].
+De acordo com o Código de Defesa do Consumidor, o produto está dentro do prazo de garantia legal. Solicito a substituição do item por um novo em perfeito estado ou a devolução integral do valor pago de R$ [Valor].
+Aguardo instruções para a devolução e troca em até [número de dias, ex: 5 dias úteis].
+Atenciosamente,
+[Seu Nome Completo]
+CPF: [Seu CPF]
+Telefone/WhatsApp: [Seu Telefone]"
+2026-11-14 17:10:18;"texto 2 de teste
+"
+2026-11-14 17:11:05;nova reclamacao
