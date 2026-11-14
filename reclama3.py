@@ -30,18 +30,29 @@ def carregar_nltk():
 carregar_nltk()
 
 def analisar_frequencia_corpus(limite=15):
-    """Analisa a frequência de palavras utilizando TODAS as reclamações salvas no CSV."""
+    """Lê o banco de dados (CSV) e analisa a frequência de palavras de TODO o histórico."""
     if not os.path.exists(ARQUIVO_HISTORICO):
         return []
 
     try:
-        df = pd.read_csv(ARQUIVO_HISTORICO, sep=';')
+        # Tenta ler o arquivo CSV gerado com ponto e vírgula
+        df = pd.read_csv(ARQUIVO_HISTORICO, sep=';', encoding='utf-8')
+        
+        # Garante que a coluna 'Reclamacao' existe e não está vazia
         if df.empty or 'Reclamacao' not in df.columns:
             return []
         
-        # Concatena todos os textos de reclamação salvos em uma única string gigante
-        texto_completo = " ".join(df['Reclamacao'].astype(str).tolist())
-    except Exception:
+        # Remove valores nulos e converte tudo para string
+        textos = df['Reclamacao'].dropna().astype(str).tolist()
+        
+        if not textos:
+            return []
+            
+        # Concatena todas as reclamações em um único texto global
+        texto_completo = " ".join(textos)
+        
+    except Exception as e:
+        st.error(f"Erro ao ler o banco de dados (CSV): {e}")
         return []
 
     if not texto_completo.strip():
@@ -74,26 +85,27 @@ def analisar_frequencia_corpus(limite=15):
     return frequencia.most_common(limite)
 
 def salvar_reclamacao_csv(texto):
-    """Salva a nova reclamação informada com data/hora no arquivo CSV."""
+    """Salva a nova reclamação informada com data/hora no arquivo CSV garantindo a estrutura."""
     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     nova_linha = pd.DataFrame([{"Data_Hora": data_atual, "Reclamacao": texto}])
     
     if os.path.exists(ARQUIVO_HISTORICO):
+        # Anexa sem repetir o cabeçalho
         nova_linha.to_csv(ARQUIVO_HISTORICO, mode='a', header=False, index=False, sep=';', encoding='utf-8')
     else:
+        # Cria o arquivo com cabeçalho se ele não existir
         nova_linha.to_csv(ARQUIVO_HISTORICO, mode='w', header=True, index=False, sep=';', encoding='utf-8')
 
 # --- Interface Gráfica (Streamlit) ---
 
 st.title("📊 Painel de Inteligência de Reclamações")
-st.markdown("Ferramenta corporativa para consolidação de feedbacks e identificação de termos críticos em **todo o histórico acumulado**.")
+st.markdown("Ferramenta corporativa para consolidação de feedbacks e identificação de termos críticos extraídos diretamente da base de dados histórica.")
 st.divider()
 
 # Abas de Navegação da Aplicação
-aba_analise, aba_historico = st.tabs(["🔍 Inserir & Analisar Base Completa", "📂 Histórico de Reclamações Gravadas"])
+aba_analise, aba_historico = st.tabs(["🔍 Inserir & Análise Global", "📂 Banco de Dados (Histórico CSV)"])
 
 with aba_analise:
-    # Campo de entrada de texto
     texto_informado = st.text_area(
         "Adicionar novo relatório de feedback / reclamação ao sistema:",
         placeholder="Cole o texto da nova reclamação aqui...",
@@ -104,24 +116,24 @@ with aba_analise:
     col1, _ = st.columns([1, 4])
 
     with col1:
-        botao_adicionar = st.button("Salvar & Atualizar Análise", type="primary", use_container_width=True)
+        botao_adicionar = st.button("Salvar no Banco & Atualizar", type="primary", use_container_width=True)
 
     if botao_adicionar:
         if not texto_informado.strip():
             st.warning("Por favor, insira um texto válido antes de salvar.")
         else:
             salvar_reclamacao_csv(texto_informado)
-            st.success("Nova reclamação anexada com sucesso à base de dados global!")
+            st.success("Reclamação gravada com sucesso no banco de dados!")
+            st.rerun() # Atualiza a tela imediatamente para refletir os novos dados na análise
 
     st.markdown("---")
-    st.subheader("📈 Análise Consolidada de Frequência (Todos os Dados)")
-    st.markdown("Abaixo estão os termos mais recorrentes considerando **todas as reclamações já gravadas** no servidor.")
+    st.subheader("📈 Análise Estatística Consolidada (Base Completa)")
+    st.markdown("Resultados calculados utilizando **absolutamente todos os registros** acumulados no arquivo CSV.")
 
-    # Executa a análise baseada estritamente no corpus completo do CSV
+    # Executa a análise baseada no corpus completo
     resultados = analisar_frequencia_corpus(limite=15)
 
     if resultados:
-        # Convertendo resultados globais para DataFrame do pandas
         df_resultados = pd.DataFrame(resultados, columns=["Palavra", "Ocorrências"])
         df_resultados["Palavra"] = df_resultados["Palavra"].str.capitalize()
         
@@ -143,28 +155,28 @@ with aba_analise:
             mime="text/csv"
         )
     else:
-        st.info("Ainda não há dados suficientes no histórico para gerar a análise estatística. Adicione a primeira reclamação acima.")
+        st.info("O banco de dados ainda está vazio ou não contém palavras válidas suficientes. Adicione registros na aba acima.")
 
 with aba_historico:
-    st.subheader("Repositório de Reclamações Registradas")
-    st.markdown("Listagem completa de todas as entradas submetidas e armazenadas no arquivo corporativo.")
+    st.subheader("Registros Armazenados no Servidor")
     
     if os.path.exists(ARQUIVO_HISTORICO):
-        df_historico = pd.read_csv(ARQUIVO_HISTORICO, sep=';')
-        
-        st.metric("Total de Registros na Base", len(df_historico))
-        st.dataframe(df_historico, use_container_width=True, hide_index=True)
-        
-        # Botão para baixar todo o histórico consolidado
-        historico_csv = df_historico.to_csv(index=False, sep=';').encode('utf-8')
-        st.download_button(
-            label="📥 Baixar Histórico Completo de Reclamações (CSV)",
-            data=historico_csv,
-            file_name="historico_reclamacoes_geral.csv",
-            mime="text/csv"
-        )
+        try:
+            df_historico = pd.read_csv(ARQUIVO_HISTORICO, sep=';', encoding='utf-8')
+            st.metric("Total de Registros na Base", len(df_historico))
+            st.dataframe(df_historico, use_container_width=True, hide_index=True)
+            
+            historico_csv = df_historico.to_csv(index=False, sep=';').encode('utf-8')
+            st.download_button(
+                label="📥 Baixar Base Completa de Reclamações (CSV)",
+                data=historico_csv,
+                file_name="historico_reclamacoes_geral.csv",
+                mime="text/csv"
+            )
+        except Exception as e:
+            st.error(f'Erro ao carregar a tabela de histórico: {e}')
     else:
-        st.info("O arquivo de histórico ainda não foi criado.")
+        st.warning("O arquivo `historico_reclamacoes.csv` ainda não foi criado no servidor.")
 
 # Rodapé
 st.markdown("---")
